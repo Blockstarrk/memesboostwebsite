@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.iphone-13-14 {
+  @apply font-poppins;
+}

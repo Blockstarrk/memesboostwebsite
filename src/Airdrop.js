@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { TokenContext } from './context/TokenContext';
-import { supabase } from './supabaseConfig';
 import './Airdrop.css';
 
 function Airdrop() {
@@ -11,20 +10,20 @@ function Airdrop() {
   const [xProfile, setXProfile] = useState('');
   const [tasks, setTasks] = useState([]);
   const [error, setError] = useState(null);
+
   const shortenName = (name) => (name && name.length > 10 ? `${name.slice(0, 10)}...` : name || '');
 
   useEffect(() => {
     const fetchTasks = async () => {
-      if (!supabase) {
-        setError('Supabase not initialized');
-        return;
-      }
       try {
-        const { data, error } = await supabase.from('tasks').select('*').eq('is_active', true);
-        if (error) throw error;
+        console.log('Airdrop.js: Fetching tasks...');
+        const response = await fetch('http://localhost:5000/api/tasks');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch tasks');
         setTasks(data);
+        console.log('Airdrop.js: Tasks fetched:', data);
       } catch (err) {
-        console.error('Error fetching tasks:', err);
+        console.error('Airdrop.js: Error fetching tasks:', err.message);
         setError('Failed to load tasks');
       }
     };
@@ -50,50 +49,23 @@ function Airdrop() {
       alert('Please enter both wallet address and X profile link');
       return;
     }
-    if (!supabase) {
-      alert('Supabase not initialized');
-      return;
-    }
 
     try {
-      const { count, error: countError } = await supabase.from('users').select('*', { count: 'exact' });
-      if (countError) throw countError;
-      if (count >= 222) {
-        alert('User limit of 222 reached');
-        setShowModal(false);
-        return;
-      }
-
-      const { data: existingUser, error: fetchError } = await supabase
-        .from('users')
-        .select('id, wallet_address, x_profile')
-        .eq('wallet_address', walletAddress)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
-
-      if (existingUser) {
-        sessionStorage.setItem('user', JSON.stringify(existingUser));
-        setUser(existingUser);
-        setShowModal(false);
-        alert('Logged in successfully');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('users')
-        .insert({ wallet_address: walletAddress, x_profile: xProfile })
-        .select('id, wallet_address, x_profile')
-        .single();
-
-      if (error) throw error;
+      console.log('Airdrop.js: Submitting profile:', { walletAddress, xProfile });
+      const response = await fetch('http://localhost:5000/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_address: walletAddress, x_profile: xProfile }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to register');
 
       sessionStorage.setItem('user', JSON.stringify(data));
       setUser(data);
       setShowModal(false);
-      alert('Registered successfully');
+      alert(response.status === 201 ? 'Registered successfully' : 'Logged in successfully');
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Airdrop.js: Error submitting profile:', error.message);
       alert('Failed to register: ' + error.message);
     }
   };
@@ -103,37 +75,21 @@ function Airdrop() {
       alert('Please connect your wallet first.');
       return;
     }
-    if (!supabase) {
-      alert('Supabase not initialized');
-      return;
-    }
 
     try {
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('points, last_boost_time')
-        .eq('id', user.id)
-        .single();
+      console.log('Airdrop.js: Boosting airdrop:', airdropId);
+      const response = await fetch('http://localhost:5000/api/boost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to boost');
 
-      if (error) throw error;
-
-      const now = new Date();
-      const lastBoostTime = userData.last_boost_time ? new Date(userData.last_boost_time) : null;
-
-      if (lastBoostTime && now - lastBoostTime < 24 * 60 * 60 * 1000) {
-        alert('You can only boost once per day.');
-        return;
-      }
-
-      await supabase
-        .from('users')
-        .update({ points: userData.points + 1, last_boost_time: now.toISOString() })
-        .eq('id', user.id);
-
-      setUser({ ...user, points: userData.points + 1 });
+      setUser({ ...user, points: data.points });
       alert('Boost successful! +1 point');
     } catch (error) {
-      console.error('Error boosting:', error);
+      console.error('Airdrop.js: Error boosting:', error.message);
       alert('Failed to boost: ' + error.message);
     }
   };
@@ -143,41 +99,21 @@ function Airdrop() {
       alert('Please connect your wallet first.');
       return;
     }
-    if (!supabase) {
-      alert('Supabase not initialized');
-      return;
-    }
 
     try {
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('completed_tasks, points')
-        .eq('id', user.id)
-        .single();
-
-      if (error) throw error;
-
-      if (userData.completed_tasks.includes(taskId)) {
-        alert('Task already completed.');
-        return;
-      }
-
-      await supabase
-        .from('users')
-        .update({
-          points: userData.points + taskPoints,
-          completed_tasks: [...userData.completed_tasks, taskId],
-        })
-        .eq('id', user.id);
-
-      setUser({
-        ...user,
-        points: userData.points + taskPoints,
-        completed_tasks: [...userData.completed_tasks, taskId],
+      console.log('Airdrop.js: Completing task:', taskId);
+      const response = await fetch('http://localhost:5000/api/tasks/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, task_id: taskId, task_points: taskPoints }),
       });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to complete task');
+
+      setUser({ ...user, points: data.points, completed_tasks: data.completed_tasks });
       alert(`Task completed! +${taskPoints} points`);
     } catch (error) {
-      console.error('Error completing task:', error);
+      console.error('Airdrop.js: Error completing task:', error.message);
       alert('Failed to complete task: ' + error.message);
     }
   };
@@ -228,9 +164,7 @@ function Airdrop() {
                 />
               </div>
               <div className="button-group">
-                <button type="submit" className="submit">
-                  Submit
-                </button>
+                <button type="submit" className="submit">Submit</button>
                 <button type="button" className="cancel" onClick={() => setShowModal(false)}>
                   Cancel
                 </button>

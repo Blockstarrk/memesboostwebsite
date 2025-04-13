@@ -1,6 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { TokenContext } from './context/TokenContext';
-import { supabase } from './supabaseConfig';
 import './Admin.css';
 
 const formatNumber = (num) => {
@@ -30,24 +29,37 @@ function Admin() {
   });
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
+  const [error, setError] = useState(null);
+
+  const API_BASE_URL = 'http://localhost:5000';
 
   useEffect(() => {
     const fetchTasks = async () => {
-      const { data, error } = await supabase.from('tasks').select('*');
-      if (error) {
-        console.error('Error fetching tasks:', error);
-        return;
+      try {
+        console.log('Admin.js: Fetching tasks...');
+        const response = await fetch(`${API_BASE_URL}/api/tasks`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch tasks');
+        setTasks(data);
+        console.log('Admin.js: Tasks fetched:', data);
+      } catch (err) {
+        console.error('Admin.js: Error fetching tasks:', err.message);
+        setError('Failed to load tasks');
       }
-      setTasks(data);
     };
 
     const fetchUsers = async () => {
-      const { data, error } = await supabase.from('users').select('*');
-      if (error) {
-        console.error('Error fetching users:', error);
-        return;
+      try {
+        console.log('Admin.js: Fetching users...');
+        const response = await fetch(`${API_BASE_URL}/api/users`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch users');
+        setUsers(data);
+        console.log('Admin.js: Users fetched:', data);
+      } catch (err) {
+        console.error('Admin.js: Error fetching users:', err.message);
+        setError('Failed to load users');
       }
-      setUsers(data);
     };
 
     fetchTasks();
@@ -151,48 +163,70 @@ function Admin() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert({ description, link, points: Number(points), is_active: true })
-        .select('*')
-        .single();
-      if (error) throw error;
+      console.log('Admin.js: Adding task:', { description, link, points });
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description, link, points: Number(points) }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to add task');
       setTasks((prev) => [...prev, data]);
       setTaskForm({ description: '', link: '', points: '' });
       alert('Task added successfully');
     } catch (error) {
-      console.error('Error adding task:', error);
+      console.error('Admin.js: Error adding task:', error.message);
       alert('Failed to add task: ' + error.message);
     }
   };
 
   const handleDeleteTask = async (taskId) => {
     try {
-      const { error } = await supabase.from('tasks').delete().eq('id', taskId);
-      if (error) throw error;
+      console.log('Admin.js: Deleting task:', taskId);
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete task');
+      }
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
       alert('Task deleted successfully');
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error('Admin.js: Error deleting task:', error.message);
       alert('Failed to delete task: ' + error.message);
     }
   };
 
   const handleToggleTaskStatus = async (taskId, isActive) => {
     try {
-      const { error } = await supabase.from('tasks').update({ is_active: !isActive }).eq('id', taskId);
-      if (error) throw error;
+      console.log('Admin.js: Toggling task status:', taskId, isActive);
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !isActive }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to toggle task');
       setTasks((prev) =>
         prev.map((task) => (task.id === taskId ? { ...task, is_active: !isActive } : task))
       );
       alert(`Task ${!isActive ? 'activated' : 'deactivated'} successfully`);
     } catch (error) {
-      console.error('Error toggling task status:', error);
+      console.error('Admin.js: Error toggling task status:', error.message);
       alert('Failed to toggle task status: ' + error.message);
     }
   };
 
   const shortenName = (name) => (name && name.length > 10 ? `${name.slice(0, 10)}...` : name || '');
+
+  if (error) {
+    return (
+      <div className="admin-page font-poppins max-w-4xl mx-auto p-5 bg-[#232020] text-white min-h-screen">
+        <div style={{ color: 'red', textAlign: 'center', padding: '20px' }}>{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-page font-poppins max-w-4xl mx-auto p-5 bg-[#232020] text-white min-h-screen">
@@ -467,7 +501,7 @@ function Admin() {
                 </td>
                 <td className="p-2">{user.points || 0}</td>
                 <td className="p-2">{user.last_boost_time ? new Date(user.last_boost_time).toLocaleString() : '-'}</td>
-                <td className="p-2">{user.completed_tasks.length ? user.completed_tasks.join(', ') : '-'}</td>
+                <td className="p-2">{user.completed_tasks?.length ? user.completed_tasks.join(', ') : '-'}</td>
               </tr>
             ))}
           </tbody>

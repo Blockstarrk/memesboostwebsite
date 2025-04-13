@@ -10,16 +10,23 @@ function Airdrop() {
   const [walletAddress, setWalletAddress] = useState('');
   const [xProfile, setXProfile] = useState('');
   const [tasks, setTasks] = useState([]);
+  const [error, setError] = useState(null);
   const shortenName = (name) => (name && name.length > 10 ? `${name.slice(0, 10)}...` : name || '');
 
   useEffect(() => {
     const fetchTasks = async () => {
-      const { data, error } = await supabase.from('tasks').select('*').eq('is_active', true);
-      if (error) {
-        console.error('Error fetching tasks:', error);
+      if (!supabase) {
+        setError('Supabase not initialized');
         return;
       }
-      setTasks(data);
+      try {
+        const { data, error } = await supabase.from('tasks').select('*').eq('is_active', true);
+        if (error) throw error;
+        setTasks(data);
+      } catch (err) {
+        console.error('Error fetching tasks:', err);
+        setError('Failed to load tasks');
+      }
     };
     fetchTasks();
 
@@ -43,20 +50,27 @@ function Airdrop() {
       alert('Please enter both wallet address and X profile link');
       return;
     }
+    if (!supabase) {
+      alert('Supabase not initialized');
+      return;
+    }
 
     try {
-      const { count } = await supabase.from('users').select('*', { count: 'exact' });
+      const { count, error: countError } = await supabase.from('users').select('*', { count: 'exact' });
+      if (countError) throw countError;
       if (count >= 222) {
         alert('User limit of 222 reached');
         setShowModal(false);
         return;
       }
 
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error: fetchError } = await supabase
         .from('users')
         .select('id, wallet_address, x_profile')
         .eq('wallet_address', walletAddress)
         .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
       if (existingUser) {
         sessionStorage.setItem('user', JSON.stringify(existingUser));
@@ -87,6 +101,10 @@ function Airdrop() {
   const handleBoost = async (airdropId) => {
     if (!user) {
       alert('Please connect your wallet first.');
+      return;
+    }
+    if (!supabase) {
+      alert('Supabase not initialized');
       return;
     }
 
@@ -125,6 +143,10 @@ function Airdrop() {
       alert('Please connect your wallet first.');
       return;
     }
+    if (!supabase) {
+      alert('Supabase not initialized');
+      return;
+    }
 
     try {
       const { data: userData, error } = await supabase
@@ -159,6 +181,14 @@ function Airdrop() {
       alert('Failed to complete task: ' + error.message);
     }
   };
+
+  if (error) {
+    return (
+      <div className="Iphone13142 font-poppins">
+        <div style={{ color: 'red', textAlign: 'center', padding: '20px' }}>{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="Iphone13142 font-poppins">

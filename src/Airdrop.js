@@ -161,91 +161,47 @@ function Airdrop() {
   };
 
   return (
-    <div
-      className="Iphone13142 font-poppins"
-      style={{ width: 390, height: 1653, position: 'relative', background: '#FDD800', overflow: 'hidden' }}
-    >
-      <div
-        style={{ width: 165, height: 12, left: 125, top: 44, position: 'absolute', color: 'black', fontSize: 18, fontFamily: "'Luckiest Guy'", fontWeight: 400 }}
-      >
+    <div className="Iphone13142 font-poppins">
+      <div className="BoostForAirdrop" style={{ left: 125, top: 44, position: 'absolute' }}>
         BOOST FOR AIRDROP
       </div>
       <button
-        style={{
-          width: 172,
-          height: 48,
-          left: 115,
-          top: 94,
-          position: 'absolute',
-          background: 'linear-gradient(180deg, #F1B00C 0%, #FDD800 100%)',
-          boxShadow: '0px 4px 4px rgba(0, 0, 0, 0.25)',
-          borderRadius: 10,
-          border: 'none',
-          cursor: 'pointer',
-        }}
+        className="Top1boosted"
+        style={{ left: 115, top: 94, position: 'absolute' }}
         onClick={handleConnectWallet}
       >
-        <div
-          style={{ left: 8, top: 9, position: 'relative', color: 'black', fontSize: 20, fontFamily: 'Poppins', fontWeight: 700 }}
-        >
+        <div className="ConnectWallet" style={{ left: 8, top: 9, position: 'relative' }}>
           {user ? 'Connected' : 'Connect Wallet'}
         </div>
       </button>
       {showModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', padding: 20, borderRadius: 10, width: 300 }}>
-            <h2 style={{ color: '#000', fontFamily: 'Poppins', fontWeight: 700, fontSize: 18, marginBottom: 10 }}>Enter Your Details</h2>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>Enter Your Details</h2>
             <form onSubmit={handleSubmitProfile}>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ color: '#000', fontFamily: 'Poppins', fontSize: 14, display: 'block', marginBottom: 5 }}>Wallet Address</label>
+              <div>
+                <label>Wallet Address</label>
                 <input
                   type="text"
                   value={walletAddress}
                   onChange={(e) => setWalletAddress(e.target.value)}
                   placeholder="0x..."
-                  style={{ width: '100%', padding: 8, borderRadius: 5, border: '1px solid #ccc', fontFamily: 'Poppins' }}
                 />
               </div>
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ color: '#000', fontFamily: 'Poppins', fontSize: 14, display: 'block', marginBottom: 5 }}>X Profile Link</label>
+              <div>
+                <label>X Profile Link</label>
                 <input
                   type="text"
                   value={xProfile}
                   onChange={(e) => setXProfile(e.target.value)}
                   placeholder="https://x.com/username"
-                  style={{ width: '100%', padding: 8, borderRadius: 5, border: '1px solid #ccc', fontFamily: 'Poppins' }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  type="submit"
-                  style={{
-                    background: 'linear-gradient(180deg, #F1B00C 0%, #FDD800 100%)',
-                    color: '#000',
-                    fontFamily: 'Poppins',
-                    fontWeight: 700,
-                    padding: '8px 16px',
-                    borderRadius: 5,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
+              <div className="button-group">
+                <button type="submit" className="submit">
                   Submit
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    background: '#e73838',
-                    color: '#fff',
-                    fontFamily: 'Poppins',
-                    fontWeight: 700,
-                    padding: '8px 16px',
-                    borderRadius: 5,
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
+                <button type="button" className="cancel" onClick={() => setShowModal(false)}>
                   Cancel
                 </button>
               </div>
@@ -254,26 +210,65 @@ function Airdrop() {
         </div>
       )}
       <div
-        style={{ left: 66, top: 184, position: 'absolute', color: 'black', fontSize: 8, fontFamily: 'Poppins', fontWeight: 700 }}
+        className="CompleteAllTasksAndGainPointsToEarnRewardsForBoosting"
+        style={{ left: 66, top: 184, position: 'absolute' }}
       >
         Complete all tasks and gain points to earn rewards for boosting!
       </div>
       {airdrops.length === 0 && (
-        <div style={{ left: 47, top: 217, position: 'absolute', color: 'black', fontSize: 14, fontFamily: 'Poppins' }}>No airdrops added yet.</div>
+        <div style={{ left: 47, top: 217, position: 'absolute', color: 'black', fontSize: 14, fontFamily: 'Poppins' }}>
+          No airdrops added yet.
+        </div>
       )}
       {airdrops.map((airdrop, index) => (
         <div key={airdrop.id} style={{ position: 'relative' }}>
           <div
-            style={{ width: 296, height: 57, left: 47, top: 217 + index * 80, position: 'absolute', background: '#2F2828', boxShadow: '0px 4px 4px rgba(0, 0, 0, 0.25)', borderRadius: 10 }}
+            style={{
+              width: 296,
+              height: 57,
+              left: 47,
+              top: 217 + index * 80,
+              position: 'absolute',
+              background: '#2F2828',
+              boxShadow: '0px 4px 4px rgba(0, 0, 0, 0.25)',
+              borderRadius: 10,
+            }}
           />
           <div
-            style={{ width: 46, height: 40, left: 58, top: 224 + index * 80, position: 'absolute', background: '#D9D9D9', borderRadius: 5 }}
+            style={{
+              width: 46,
+              height: 40,
+              left: 58,
+              top: 224 + index * 80,
+              position: 'absolute',
+              background: '#D9D9D9',
+              borderRadius: 5,
+            }}
           />
           <div
-            style={{ width: 56, height: 39, left: 279, top: 224 + index * 80, position: 'absolute', background: 'black', borderRadius: 5 }}
+            style={{
+              width: 56,
+              height: 39,
+              left: 279,
+              top: 224 + index * 80,
+              position: 'absolute',
+              background: 'black',
+              borderRadius: 5,
+            }}
           />
           <button
-            style={{ left: 285, top: 240 + index * 80, position: 'absolute', color: '#FDD800', fontSize: 12, fontFamily: "'Luckiest Guy'", fontWeight: 400, background: 'transparent', border: 'none', cursor: 'pointer' }}
+            style={{
+              left: 285,
+              top: 240 + index * 80,
+              position: 'absolute',
+              color: '#FDD800',
+              fontSize: 12,
+              fontFamily: "'Luckiest Guy'",
+              fontWeight: 400,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+            }}
             onClick={() => handleBoost(airdrop.id)}
           >
             Boost
@@ -284,38 +279,69 @@ function Airdrop() {
             alt="Thunderbolt"
           />
           <div
-            style={{ width: 88, left: 113, top: 231 + index * 80, position: 'absolute', fontSize: 8, fontFamily: 'Poppins', fontWeight: 700 }}
+            style={{
+              width: 88,
+              left: 113,
+              top: 231 + index * 80,
+              position: 'absolute',
+              fontSize: 8,
+              fontFamily: 'Poppins',
+              fontWeight: 700,
+            }}
           >
             <span style={{ color: 'white' }}>{shortenName(airdrop.name)} (</span>
-            <a href={airdrop.telegramLink || '#'} target="_blank" rel="noopener noreferrer" style={{ color: '#1DFF38' }}>${airdrop.ticker}</a>
+            <a href={airdrop.telegramLink || '#'} target="_blank" rel="noopener noreferrer" style={{ color: '#1DFF38' }}>
+              ${airdrop.ticker}
+            </a>
             <span style={{ color: 'white' }}>)</span>
           </div>
           <div
-            style={{ width: 86, left: 115, top: 244 + index * 80, position: 'absolute', color: 'white', fontSize: 8, fontFamily: 'Poppins', fontWeight: 700 }}
+            style={{
+              width: 86,
+              left: 115,
+              top: 244 + index * 80,
+              position: 'absolute',
+              color: 'white',
+              fontSize: 8,
+              fontFamily: 'Poppins',
+              fontWeight: 700,
+            }}
           >
             Status: {airdrop.status}
           </div>
           <div
-            style={{ left: 116, top: 256 + index * 80, position: 'absolute', color: 'white', fontSize: 8, fontFamily: 'Poppins', fontWeight: 700 }}
+            style={{
+              left: 116,
+              top: 256 + index * 80,
+              position: 'absolute',
+              color: 'white',
+              fontSize: 8,
+              fontFamily: 'Poppins',
+              fontWeight: 700,
+            }}
           >
             Chain: {airdrop.chain}
           </div>
         </div>
       ))}
-      <div
-        style={{ left: 168, top: 849, position: 'absolute', color: 'black', fontSize: 8, fontFamily: 'Poppins', fontWeight: 700 }}
-      >
+      <div className="ShowMore" style={{ left: 168, top: 849, position: 'absolute' }}>
         Show More >
       </div>
-      <div
-        style={{ left: 142, top: 937, position: 'absolute', color: 'black', fontSize: 18, fontFamily: "'Luckiest Guy'", fontWeight: 400 }}
-      >
+      <div className="SocialsTasks" style={{ left: 142, top: 937, position: 'absolute' }}>
         SOCIALS TASKS
       </div>
       {tasks.map((task, index) => (
         <div key={task.id} style={{ position: 'relative' }}>
           <div
-            style={{ width: 322, height: 52, left: 46, top: 978 + index * 70, position: 'absolute', background: '#DDB120', borderRadius: 10 }}
+            style={{
+              width: 322,
+              height: 52,
+              left: 46,
+              top: 978 + index * 70,
+              position: 'absolute',
+              background: '#DDB120',
+              borderRadius: 10,
+            }}
           />
           <a
             href={task.link}
@@ -325,7 +351,15 @@ function Airdrop() {
             style={{ textDecoration: 'none' }}
           >
             <div
-              style={{ left: 60, top: 997 + index * 70, position: 'absolute', color: 'black', fontSize: 18, fontFamily: "'Luckiest Guy'", fontWeight: 400 }}
+              style={{
+                left: 60,
+                top: 997 + index * 70,
+                position: 'absolute',
+                color: 'black',
+                fontSize: 18,
+                fontFamily: "'Luckiest Guy'",
+                fontWeight: 400,
+              }}
             >
               {task.description}
             </div>

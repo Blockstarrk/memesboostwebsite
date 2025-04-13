@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.Iphone13142 {
+  width: 390px;
+  height: 1653px;
+  background: #FDD800;
+  overflow: hidden;
+}
+
+.BoostForAirdrop {
+  width: 165px;
+  height: 12px;
+  color: black;
+  font-size: 18px;
+  font-family: 'Luckiest Guy', cursive;
+  font-weight: 400;
+}
+
+.Top1boosted {
+  width: 172px;
+  height: 48px;
+  background: linear-gradient(180deg, #F1B00C 0%, #FDD800 100%);
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+}
+
+.ConnectWallet {
+  color: black;
+  font-size: 20px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+}
+
+.CompleteAllTasksAndGainPointsToEarnRewardsForBoosting {
+  color: black;
+  font-size: 8px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+}
+
+.SocialsTasks {
+  color: black;
+  font-size: 18px;
+  font-family: 'Luckiest Guy', cursive;
+  font-weight: 400;
+}
+
+.ShowMore {
+  color: black;
+  font-size: 8px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  width: 300px;
+}
+
+.modal-content h2 {
+  color: black;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.modal-content label {
+  color: black;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-family: 'Poppins', sans-serif;
+}
+
+.modal-content .button-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.modal-content button.submit {
+  background: linear-gradient(180deg, #F1B00C 0%, #FDD800 100%);
+  color: black;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+}
+
+.modal-content button.cancel {
+  background: #e73838;
+  color: white;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+}

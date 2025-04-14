@@ -1,213 +1,191 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 
 const app = express();
 app.use(cors({ origin: ['http://localhost:3000', process.env.FRONTEND_URL] }));
 app.use(express.json());
 
-// SQLite connection
-const db = new sqlite3.Database('./database.sqlite', (err) => {
-  if (err) console.error('Error connecting to SQLite:', err.message);
-  else console.log('Connected to SQLite');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-// Create tables
-db.serialize(() => {
-  db.run(`
+pool.connect((err) => {
+  if (err) console.error('Error connecting to PostgreSQL:', err.message);
+  else console.log('Connected to PostgreSQL');
+});
+
+const initDb = async () => {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       wallet_address TEXT UNIQUE,
       x_profile TEXT,
       points INTEGER DEFAULT 0,
-      last_boost_time DATETIME
+      last_boost_time TIMESTAMP
     )
   `);
-  db.run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       description TEXT,
       link TEXT,
       points INTEGER,
-      is_active BOOLEAN DEFAULT 1
+      is_active BOOLEAN DEFAULT true
     )
   `);
-  db.run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS user_tasks (
       user_id INTEGER,
       task_id INTEGER,
-      completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (user_id, task_id),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     )
   `);
-});
+};
+initDb().catch(err => console.error('Error initializing DB:', err));
 
-// API Endpoints
-app.get('/api/tasks', (req, res) => {
-  db.all('SELECT * FROM tasks WHERE is_active = 1', [], (err, rows) => {
-    if (err) {
-      console.error('Error fetching tasks:', err.message);
-      return res.status(500).json({ error: 'Failed to fetch tasks' });
-    }
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM tasks WHERE is_active = true');
     res.json(rows);
-  });
+  } catch (err) {
+    console.error('Error fetching tasks:', err.message);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
 });
 
-app.post('/api/tasks', (req, res) => {
+app.post('/api/tasks', async (req, res) => {
   const { description, link, points } = req.body;
   if (!description || !link || !points) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  db.run(
-    'INSERT INTO tasks (description, link, points, is_active) VALUES (?, ?, ?, 1)',
-    [description, link, points],
-    function (err) {
-      if (err) {
-        console.error('Error adding task:', err.message);
-        return res.status(500).json({ error: 'Failed to add task' });
-      }
-      res.status(201).json({ id: this.lastID, description, link, points, is_active: 1 });
-    }
-  );
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO tasks (description, link, points, is_active) VALUES ($1, $2, $3, true) RETURNING *',
+      [description, link, points]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error adding task:', err.message);
+    res.status(500).json({ error: 'Failed to add task' });
+  }
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
+app.delete('/api/tasks/:id', async (req, res) => {
   const { id } = req.params;
-  db.run('DELETE FROM tasks WHERE id = ?', [id], function (err) {
-    if (err || this.changes === 0) {
-      console.error('Error deleting task:', err?.message);
+  try {
+    const result = await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Task not found' });
     }
     res.status(204).send();
-  });
+  } catch (err) {
+    console.error('Error deleting task:', err.message);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
 });
 
-app.patch('/api/tasks/:id/toggle', (req, res) => {
+app.patch('/api/tasks/:id/toggle', async (req, res) => {
   const { id } = req.params;
   const { is_active } = req.body;
-  db.run(
-    'UPDATE tasks SET is_active = ? WHERE id = ?',
-    [is_active ? 1 : 0, id],
-    function (err) {
-      if (err || this.changes === 0) {
-        console.error('Error toggling task:', err?.message);
-        return res.status(404).json({ error: 'Task not found' });
-      }
-      res.json({ id, is_active });
-    }
-  );
-});
-
-app.post('/api/users', (req, res) => {
-  db.get('SELECT COUNT(*) as count FROM users', [], (err, row) => {
-    if (err) {
-      console.error('Error counting users:', err.message);
-      return res.status(500).json({ error: 'Failed to check user count' });
-    }
-    if (row.count >= 222) {
-      return res.status(403).json({ error: 'User limit reached' });
-    }
-    const { wallet_address, x_profile } = req.body;
-    if (!wallet_address || !x_profile) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    db.run(
-      'INSERT OR REPLACE INTO users (wallet_address, x_profile, points) VALUES (?, ?, ?)',
-      [wallet_address, x_profile, 0],
-      function (err) {
-        if (err) {
-          console.error('Error registering user:', err.message);
-          return res.status(500).json({ error: 'Failed to register user' });
-        }
-        res.status(201).json({ id: this.lastID, wallet_address, x_profile, points: 0 });
-      }
+  try {
+    const result = await pool.query(
+      'UPDATE tasks SET is_active = $1 WHERE id = $2 RETURNING *',
+      [is_active, id]
     );
-  });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error toggling task:', err.message);
+    res.status(500).json({ error: 'Failed to toggle task' });
+  }
 });
 
-app.post('/api/boost', (req, res) => {
+app.post('/api/users', async (req, res) => {
+  const { rows: userCount } = await pool.query('SELECT COUNT(*) FROM users');
+  if (parseInt(userCount[0].count) >= 222) {
+    return res.status(403).json({ error: 'User limit reached' });
+  }
+  const { wallet_address, x_profile } = req.body;
+  if (!wallet_address || !x_profile) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO users (wallet_address, x_profile, points) VALUES ($1, $2, 0) ON CONFLICT (wallet_address) DO UPDATE SET x_profile = EXCLUDED.x_profile RETURNING *',
+      [wallet_address, x_profile]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error registering user:', err.message);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+app.post('/api/boost', async (req, res) => {
   const { user_id } = req.body;
   if (!user_id) {
     return res.status(400).json({ error: 'Missing user_id' });
   }
-  db.run(
-    'UPDATE users SET points = points + 1, last_boost_time = CURRENT_TIMESTAMP WHERE id = ?',
-    [user_id],
-    function (err) {
-      if (err || this.changes === 0) {
-        console.error('Error boosting:', err?.message);
-        return res.status(400).json({ error: 'Invalid user' });
-      }
-      db.get('SELECT points, last_boost_time FROM users WHERE id = ?', [user_id], (err, row) => {
-        if (err) {
-          console.error('Error fetching user:', err.message);
-          return res.status(500).json({ error: 'Failed to fetch user' });
-        }
-        res.json({ points: row.points, last_boost_time: row.last_boost_time });
-      });
+  try {
+    const result = await pool.query(
+      'UPDATE users SET points = points + 1, last_boost_time = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
+      [user_id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid user' });
     }
-  );
+    res.json({ points: result.rows[0].points, last_boost_time: result.rows[0].last_boost_time });
+  } catch (err) {
+    console.error('Error boosting:', err.message);
+    res.status(500).json({ error: 'Failed to boost' });
+  }
 });
 
-app.post('/api/tasks/complete', (req, res) => {
+app.post('/api/tasks/complete', async (req, res) => {
   const { user_id, task_id, task_points } = req.body;
   if (!user_id || !task_id || !task_points) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  db.run(
-    'INSERT OR IGNORE INTO user_tasks (user_id, task_id) VALUES (?, ?)',
-    [user_id, task_id],
-    function (err) {
-      if (err) {
-        console.error('Error completing task:', err.message);
-        return res.status(500).json({ error: 'Failed to complete task' });
-      }
-      if (this.changes) {
-        db.run('UPDATE users SET points = points + ? WHERE id = ?', [task_points, user_id], (err) => {
-          if (err) {
-            console.error('Error updating points:', err.message);
-            return res.status(500).json({ error: 'Failed to update points' });
-          }
-        });
-      }
-      db.get(
-        'SELECT points, (SELECT GROUP_CONCAT(task_id) FROM user_tasks WHERE user_id = ?) AS completed_tasks FROM users WHERE id = ?',
-        [user_id, user_id],
-        (err, row) => {
-          if (err) {
-            console.error('Error fetching user:', err.message);
-            return res.status(500).json({ error: 'Failed to fetch user' });
-          }
-          res.json({
-            points: row.points,
-            completed_tasks: row.completed_tasks ? row.completed_tasks.split(',').map(Number) : [],
-          });
-        }
-      );
+  try {
+    const taskResult = await pool.query(
+      'INSERT INTO user_tasks (user_id, task_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [user_id, task_id]
+    );
+    if (taskResult.rowCount) {
+      await pool.query('UPDATE users SET points = points + $1 WHERE id = $2', [task_points, user_id]);
     }
-  );
+    const user = await pool.query(
+      'SELECT points, (SELECT ARRAY_AGG(task_id) FROM user_tasks WHERE user_id = $1) AS completed_tasks FROM users WHERE id = $1',
+      [user_id]
+    );
+    res.json({ points: user.rows[0].points, completed_tasks: user.rows[0].completed_tasks || [] });
+  } catch (err) {
+    console.error('Error completing task:', err.message);
+    res.status(500).json({ error: 'Failed to complete task' });
+  }
 });
 
-app.get('/api/users', (req, res) => {
-  db.all(
-    `SELECT u.*, (SELECT GROUP_CONCAT(task_id) FROM user_tasks WHERE user_id = u.id) AS completed_tasks
-     FROM users u`,
-    [],
-    (err, rows) => {
-      if (err) {
-        console.error('Error fetching users:', err.message);
-        return res.status(500).json({ error: 'Failed to fetch users' });
-      }
-      res.json(
-        rows.map((row) => ({
-          ...row,
-          completed_tasks: row.completed_tasks ? row.completed_tasks.split(',').map(Number) : [],
-        }))
-      );
-    }
-  );
+app.get('/api/users', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT u.*, (SELECT ARRAY_AGG(task_id) FROM user_tasks WHERE user_id = u.id) AS completed_tasks
+      FROM users u
+    `);
+    res.json(rows.map(row => ({
+      ...row,
+      completed_tasks: row.completed_tasks || []
+    })));
+  } catch (err) {
+    console.error('Error fetching users:', err.message);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
 });
 
 const PORT = process.env.PORT || 5000;

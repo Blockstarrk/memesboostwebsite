@@ -9,7 +9,8 @@ function Airdrop() {
   const [walletAddress, setWalletAddress] = useState('');
   const [xProfile, setXProfile] = useState('');
   const [tasks, setTasks] = useState([]);
-  const [error, setError] = useState(null);
+
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   const shortenName = (name) => (name && name.length > 10 ? `${name.slice(0, 10)}...` : name || '');
 
@@ -17,14 +18,14 @@ function Airdrop() {
     const fetchTasks = async () => {
       try {
         console.log('Airdrop.js: Fetching tasks...');
-        const response = await fetch('http://localhost:5000/api/tasks');
+        const response = await fetch(`${API_BASE_URL}/api/tasks`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to fetch tasks');
         setTasks(data);
         console.log('Airdrop.js: Tasks fetched:', data);
       } catch (err) {
         console.error('Airdrop.js: Error fetching tasks:', err.message);
-        setError('Failed to load tasks');
+        setTasks([]);
       }
     };
     fetchTasks();
@@ -52,7 +53,7 @@ function Airdrop() {
 
     try {
       console.log('Airdrop.js: Submitting profile:', { walletAddress, xProfile });
-      const response = await fetch('http://localhost:5000/api/users', {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wallet_address: walletAddress, x_profile: xProfile }),
@@ -78,7 +79,7 @@ function Airdrop() {
 
     try {
       console.log('Airdrop.js: Boosting airdrop:', airdropId);
-      const response = await fetch('http://localhost:5000/api/boost', {
+      const response = await fetch(`${API_BASE_URL}/api/boost`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user.id }),
@@ -102,7 +103,7 @@ function Airdrop() {
 
     try {
       console.log('Airdrop.js: Completing task:', taskId);
-      const response = await fetch('http://localhost:5000/api/tasks/complete', {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: user.id, task_id: taskId, task_points: taskPoints }),
@@ -117,14 +118,6 @@ function Airdrop() {
       alert('Failed to complete task: ' + error.message);
     }
   };
-
-  if (error) {
-    return (
-      <div className="Iphone13142 font-poppins">
-        <div style={{ color: 'red', textAlign: 'center', padding: '20px' }}>{error}</div>
-      </div>
-    );
-  }
 
   return (
     <div className="Iphone13142 font-poppins">
@@ -181,7 +174,7 @@ function Airdrop() {
       </div>
       {airdrops.length === 0 && (
         <div style={{ left: 47, top: 217, position: 'absolute', color: 'black', fontSize: 14, fontFamily: 'Poppins' }}>
-          No airdrops added yet.
+          No airdrops available.
         </div>
       )}
       {airdrops.map((airdrop, index) => (
@@ -294,42 +287,48 @@ function Airdrop() {
       <div className="SocialsTasks" style={{ left: 142, top: 937, position: 'absolute' }}>
         SOCIALS TASKS
       </div>
-      {tasks.map((task, index) => (
-        <div key={task.id} style={{ position: 'relative' }}>
-          <div
-            style={{
-              width: 322,
-              height: 52,
-              left: 46,
-              top: 978 + index * 70,
-              position: 'absolute',
-              background: '#DDB120',
-              borderRadius: 10,
-            }}
-          />
-          <a
-            href={task.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => handleTaskComplete(task.id, task.points)}
-            style={{ textDecoration: 'none' }}
-          >
+      {tasks.length === 0 ? (
+        <div style={{ left: 60, top: 978, position: 'absolute', color: 'black', fontSize: 14, fontFamily: 'Poppins' }}>
+          No tasks available.
+        </div>
+      ) : (
+        tasks.map((task, index) => (
+          <div key={task.id} style={{ position: 'relative' }}>
             <div
               style={{
-                left: 60,
-                top: 997 + index * 70,
+                width: 322,
+                height: 52,
+                left: 46,
+                top: 978 + index * 70,
                 position: 'absolute',
-                color: 'black',
-                fontSize: 18,
-                fontFamily: "'Luckiest Guy'",
-                fontWeight: 400,
+                background: '#DDB120',
+                borderRadius: 10,
               }}
+            />
+            <a
+              href={task.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => handleTaskComplete(task.id, task.points)}
+              style={{ textDecoration: 'none' }}
             >
-              {task.description}
-            </div>
-          </a>
-        </div>
-      ))}
+              <div
+                style={{
+                  left: 60,
+                  top: 997 + index * 70,
+                  position: 'absolute',
+                  color: 'black',
+                  fontSize: 18,
+                  fontFamily: "'Luckiest Guy'",
+                  fontWeight: 400,
+                }}
+              >
+                {task.description}
+              </div>
+            </a>
+          </div>
+        ))
+      )}
     </div>
   );
 }

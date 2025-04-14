@@ -1,70 +1,132 @@
 const express = require('express');
-const { Pool } = require('pg');
 const cors = require('cors');
-const dotenv = require('dotenv');
-
-dotenv.config();
+const { Pool } = require('pg');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: ['http://localhost:3000', process.env.FRONTEND_URL] }));
 app.use(express.json());
 
+// PostgreSQL connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/memeboost',
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-pool.on('connect', () => console.log('Connected to PostgreSQL'));
-pool.on('error', (err) => console.error('PostgreSQL error:', err.message));
+pool.connect((err) => {
+  if (err) {
+    console.error('Error connecting to PostgreSQL:', err.message);
+  } else {
+    console.log('Connected to PostgreSQL');
+  }
+});
 
+// Create tables
+const initDb = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      wallet_address TEXT UNIQUE,
+      x_profile TEXT,
+      points INTEGER DEFAULT 0,
+      last_boost_time TIMESTAMP
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      description TEXT,
+      link TEXT,
+      points INTEGER,
+      is_active BOOLEAN DEFAULT true
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_tasks (
+      user_id INTEGER,
+      task_id INTEGER,
+      completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, task_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    )
+  `);
+};
+initDb().catch(err => console.error('Error initializing DB:', err));
+
+// API Endpoints
 app.get('/api/tasks', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM tasks WHERE is_active = TRUE');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching tasks:', error.message);
+    const { rows } = await pool.query('SELECT * FROM tasks WHERE is_active = true');
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching tasks:', err.message);
     res.status(500).json({ error: 'Failed to fetch tasks' });
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.post('/api/tasks', async (req, res) => {
+  const { description, link, points } = req.body;
+  if (!description || !link || !points) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
   try {
-    const result = await pool.query('SELECT * FROM users');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching users:', error.message);
-    res.status(500).json({ error: 'Failed to fetch users' });
+    const { rows } = await pool.query(
+      'INSERT INTO tasks (description, link, points, is_active) VALUES ($1, $2, $3, true) RETURNING *',
+      [description, link, points]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error adding task:', err.message);
+    res.status(500).json({ error: 'Failed to add task' });
+  }
+});
+
+app.delete('/api/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.status(204).send();
+  } catch (err) {
+    console.error('Error deleting task:', err.message);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+app.patch('/api/tasks/:id/toggle', async (req, res) => {
+  const { id } = req.params;
+  const { is_active } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE tasks SET is_active = $1 WHERE id = $2 RETURNING *',
+      [is_active, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error toggling task:', err.message);
+    res.status(500).json({ error: 'Failed to toggle task' });
   }
 });
 
 app.post('/api/users', async (req, res) => {
   const { wallet_address, x_profile } = req.body;
   if (!wallet_address || !x_profile) {
-    return res.status(400).json({ error: 'Missing wallet_address or x_profile' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
-
   try {
-    const countResult = await pool.query('SELECT COUNT(*) FROM users');
-    if (parseInt(countResult.rows[0].count) >= 222) {
-      return res.status(400).json({ error: 'User limit of 222 reached' });
-    }
-
-    const existingUser = await pool.query(
-      'SELECT id, wallet_address, x_profile FROM users WHERE wallet_address = $1',
-      [wallet_address]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.json(existingUser.rows[0]);
-    }
-
-    const result = await pool.query(
-      'INSERT INTO users (wallet_address, x_profile) VALUES ($1, $2) RETURNING id, wallet_address, x_profile',
+    const { rows } = await pool.query(
+      'INSERT INTO users (wallet_address, x_profile, points) VALUES ($1, $2, 0) ON CONFLICT (wallet_address) DO UPDATE SET x_profile = EXCLUDED.x_profile RETURNING *',
       [wallet_address, x_profile]
     );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating user:', error.message);
-    res.status(500).json({ error: 'Failed to create user' });
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error registering user:', err.message);
+    res.status(500).json({ error: 'Failed to register user' });
   }
 });
 
@@ -73,33 +135,17 @@ app.post('/api/boost', async (req, res) => {
   if (!user_id) {
     return res.status(400).json({ error: 'Missing user_id' });
   }
-
   try {
-    const userResult = await pool.query(
-      'SELECT points, last_boost_time FROM users WHERE id = $1',
+    const result = await pool.query(
+      'UPDATE users SET points = points + 1, last_boost_time = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
       [user_id]
     );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    if (result.rowCount === 0) {
+      return res.status(400).json({ error: 'Invalid user' });
     }
-
-    const { points, last_boost_time } = userResult.rows[0];
-    const now = new Date();
-    const lastBoostTime = last_boost_time ? new Date(last_boost_time) : null;
-
-    if (lastBoostTime && now - lastBoostTime < 24 * 60 * 60 * 1000) {
-      return res.status(400).json({ error: 'Can only boost once per day' });
-    }
-
-    await pool.query(
-      'UPDATE users SET points = $1, last_boost_time = $2 WHERE id = $3',
-      [points + 1, now.toISOString(), user_id]
-    );
-
-    res.json({ points: points + 1 });
-  } catch (error) {
-    console.error('Error boosting:', error.message);
+    res.json({ points: result.rows[0].points, last_boost_time: result.rows[0].last_boost_time });
+  } catch (err) {
+    console.error('Error boosting:', err.message);
     res.status(500).json({ error: 'Failed to boost' });
   }
 });
@@ -107,83 +153,41 @@ app.post('/api/boost', async (req, res) => {
 app.post('/api/tasks/complete', async (req, res) => {
   const { user_id, task_id, task_points } = req.body;
   if (!user_id || !task_id || !task_points) {
-    return res.status(400).json({ error: 'Missing user_id, task_id, or task_points' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
-
   try {
-    const userResult = await pool.query(
-      'SELECT completed_tasks, points FROM users WHERE id = $1',
+    const taskResult = await pool.query('INSERT INTO user_tasks (user_id, task_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user_id, task_id]);
+    if (taskResult.rowCount) {
+      await pool.query('UPDATE users SET points = points + $1 WHERE id = $2', [task_points, user_id]);
+    }
+    const user = await pool.query(
+      'SELECT points, (SELECT ARRAY_AGG(task_id) FROM user_tasks WHERE user_id = $1) AS completed_tasks FROM users WHERE id = $1',
       [user_id]
     );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const { completed_tasks, points } = userResult.rows[0];
-    if (completed_tasks.includes(task_id)) {
-      return res.status(400).json({ error: 'Task already completed' });
-    }
-
-    const newCompletedTasks = [...completed_tasks, task_id];
-    await pool.query(
-      'UPDATE users SET points = $1, completed_tasks = $2 WHERE id = $3',
-      [points + task_points, newCompletedTasks, user_id]
-    );
-
-    res.json({ points: points + task_points, completed_tasks: newCompletedTasks });
-  } catch (error) {
-    console.error('Error completing task:', error.message);
+    res.json({ points: user.rows[0].points, completed_tasks: user.rows[0].completed_tasks || [] });
+  } catch (err) {
+    console.error('Error completing task:', err.message);
     res.status(500).json({ error: 'Failed to complete task' });
   }
 });
 
-app.post('/api/tasks', async (req, res) => {
-  const { description, link, points } = req.body;
-  if (!description || !link || !points) {
-    return res.status(400).json({ error: 'Missing description, link, or points' });
-  }
-
+app.get('/api/users', async (req, res) => {
   try {
-    const result = await pool.query(
-      'INSERT INTO tasks (description, link, points, is_active) VALUES ($1, $2, $3, TRUE) RETURNING *',
-      [description, link, Number(points)]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating task:', error.message);
-    res.status(500).json({ error: 'Failed to create task' });
-  }
-});
-
-app.delete('/api/tasks/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
-    res.status(204).send();
-  } catch (error) {
-    console.error('Error deleting task:', error.message);
-    res.status(500).json({ error: 'Failed to delete task' });
-  }
-});
-
-app.patch('/api/tasks/:id/toggle', async (req, res) => {
-  const { id } = req.params;
-  const { is_active } = req.body;
-  if (typeof is_active !== 'boolean') {
-    return res.status(400).json({ error: 'is_active must be a boolean' });
-  }
-
-  try {
-    await pool.query('UPDATE tasks SET is_active = $1 WHERE id = $2', [is_active, id]);
-    res.json({ is_active });
-  } catch (error) {
-    console.error('Error toggling task:', error.message);
-    res.status(500).json({ error: 'Failed to toggle task' });
+    const { rows } = await pool.query(`
+      SELECT u.*, (SELECT ARRAY_AGG(task_id) FROM user_tasks WHERE user_id = u.id) AS completed_tasks
+      FROM users u
+    `);
+    res.json(rows.map(row => ({
+      ...row,
+      completed_tasks: row.completed_tasks || []
+    })));
+  } catch (err) {
+    console.error('Error fetching users:', err.message);
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });

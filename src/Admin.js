@@ -29,42 +29,8 @@ function Admin() {
   });
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
-  const [error, setError] = useState(null);
 
-  const API_BASE_URL = 'http://localhost:5000';
-
-  useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        console.log('Admin.js: Fetching tasks...');
-        const response = await fetch(`${API_BASE_URL}/api/tasks`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch tasks');
-        setTasks(data);
-        console.log('Admin.js: Tasks fetched:', data);
-      } catch (err) {
-        console.error('Admin.js: Error fetching tasks:', err.message);
-        setError('Failed to load tasks');
-      }
-    };
-
-    const fetchUsers = async () => {
-      try {
-        console.log('Admin.js: Fetching users...');
-        const response = await fetch(`${API_BASE_URL}/api/users`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch users');
-        setUsers(data);
-        console.log('Admin.js: Users fetched:', data);
-      } catch (err) {
-        console.error('Admin.js: Error fetching users:', err.message);
-        setError('Failed to load users');
-      }
-    };
-
-    fetchTasks();
-    fetchUsers();
-  }, []);
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   const fetchTokenData = async (contractAddress) => {
     try {
@@ -86,6 +52,65 @@ function Admin() {
       return null;
     }
   };
+
+  const updateTokenStats = async () => {
+    const updateItems = async (items, setItems) => {
+      const updated = await Promise.all(
+        items.map(async (item) => {
+          if (item.contractAddress) {
+            const stats = await fetchTokenData(item.contractAddress);
+            return stats ? { ...item, ...stats } : item;
+          }
+          return item;
+        })
+      );
+      setItems(updated.sort((a, b) => a.position - b.position));
+    };
+
+    await Promise.all([
+      updateItems(tokens, setTokens),
+      updateItems(communities, setCommunities),
+    ]);
+  };
+
+  useEffect(() => {
+    updateTokenStats();
+    const interval = setInterval(updateTokenStats, 10000);
+    return () => clearInterval(interval);
+  }, [tokens.length, communities.length]);
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        console.log('Admin.js: Fetching tasks...');
+        const response = await fetch(`${API_BASE_URL}/api/tasks`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch tasks');
+        setTasks(data);
+        console.log('Admin.js: Tasks fetched:', data);
+      } catch (err) {
+        console.error('Admin.js: Error fetching tasks:', err.message);
+        setTasks([]);
+      }
+    };
+
+    const fetchUsers = async () => {
+      try {
+        console.log('Admin.js: Fetching users...');
+        const response = await fetch(`${API_BASE_URL}/api/users`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch users');
+        setUsers(data);
+        console.log('Admin.js: Users fetched:', data);
+      } catch (err) {
+        console.error('Admin.js: Error fetching users:', err.message);
+        setUsers([]);
+      }
+    };
+
+    fetchTasks();
+    fetchUsers();
+  }, []);
 
   const handleAddToken = async (e) => {
     e.preventDefault();
@@ -213,20 +238,12 @@ function Admin() {
       );
       alert(`Task ${!isActive ? 'activated' : 'deactivated'} successfully`);
     } catch (error) {
-      console.error('Admin.js: Error toggling task status:', error.message);
+      console.error('Admin.js: Error toggling task status:', err.message);
       alert('Failed to toggle task status: ' + error.message);
     }
   };
 
   const shortenName = (name) => (name && name.length > 10 ? `${name.slice(0, 10)}...` : name || '');
-
-  if (error) {
-    return (
-      <div className="admin-page font-poppins max-w-4xl mx-auto p-5 bg-[#232020] text-white min-h-screen">
-        <div style={{ color: 'red', textAlign: 'center', padding: '20px' }}>{error}</div>
-      </div>
-    );
-  }
 
   return (
     <div className="admin-page font-poppins max-w-4xl mx-auto p-5 bg-[#232020] text-white min-h-screen">
@@ -362,34 +379,40 @@ function Admin() {
             </tr>
           </thead>
           <tbody>
-            {[...tokens, ...communities, ...airdrops].map((item) => (
-              <tr key={item.id} className="border-b border-[#d9d9d9]">
-                <td className="p-2">{item.id}</td>
-                <td className="p-2">{tokens.includes(item) ? 'Tokens' : communities.includes(item) ? 'Communities' : 'Airdrops'}</td>
-                <td className="p-2">{item.position}</td>
-                <td className="p-2">{shortenName(item.name)}</td>
-                <td className="p-2">{item.ticker || '-'}</td>
-                <td className="p-2">{item.boosts || '-'}</td>
-                <td className="p-2">{item.mcap || '-'}</td>
-                <td className="p-2">{item.liq || '-'}</td>
-                <td className="p-2">{item.vol || '-'}</td>
-                <td className="p-2">{item.status || '-'}</td>
-                <td className="p-2">{item.chain || '-'}</td>
-                <td className="p-2">
-                  <a href={item.telegramLink || '#'} target="_blank" rel="noopener noreferrer">
-                    {item.telegramLink || '-'}
-                  </a>
-                </td>
-                <td className="p-2">
-                  <button
-                    onClick={() => handleDeleteToken(item.id, tokens.includes(item) ? 'tokens' : communities.includes(item) ? 'communities' : 'airdrops')}
-                    className="bg-[#e73838] text-white py-1 px-2 rounded-md hover:bg-[#af1616]"
-                  >
-                    Delete
-                  </button>
-                </td>
+            {[...tokens, ...communities, ...airdrops].length === 0 ? (
+              <tr>
+                <td colSpan="13" className="p-2 text-center">No tokens, communities, or airdrops available.</td>
               </tr>
-            ))}
+            ) : (
+              [...tokens, ...communities, ...airdrops].map((item) => (
+                <tr key={item.id} className="border-b border-[#d9d9d9]">
+                  <td className="p-2">{item.id}</td>
+                  <td className="p-2">{tokens.includes(item) ? 'Tokens' : communities.includes(item) ? 'Communities' : 'Airdrops'}</td>
+                  <td className="p-2">{item.position}</td>
+                  <td className="p-2">{shortenName(item.name)}</td>
+                  <td className="p-2">{item.ticker || '-'}</td>
+                  <td className="p-2">{item.boosts || '-'}</td>
+                  <td className="p-2">{item.mcap || '-'}</td>
+                  <td className="p-2">{item.liq || '-'}</td>
+                  <td className="p-2">{item.vol || '-'}</td>
+                  <td className="p-2">{item.status || '-'}</td>
+                  <td className="p-2">{item.chain || '-'}</td>
+                  <td className="p-2">
+                    <a href={item.telegramLink || '#'} target="_blank" rel="noopener noreferrer">
+                      {item.telegramLink || '-'}
+                    </a>
+                  </td>
+                  <td className="p-2">
+                    <button
+                      onClick={() => handleDeleteToken(item.id, tokens.includes(item) ? 'tokens' : communities.includes(item) ? 'communities' : 'airdrops')}
+                      className="bg-[#e73838] text-white py-1 px-2 rounded-md hover:bg-[#af1616]"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -445,33 +468,39 @@ function Admin() {
             </tr>
           </thead>
           <tbody>
-            {tasks.map((task) => (
-              <tr key={task.id} className="border-b border-[#d9d9d9]">
-                <td className="p-2">{task.id}</td>
-                <td className="p-2">{task.description}</td>
-                <td className="p-2">
-                  <a href={task.link} target="_blank" rel="noopener noreferrer">
-                    {task.link}
-                  </a>
-                </td>
-                <td className="p-2">{task.points}</td>
-                <td className="p-2">{task.is_active ? 'Yes' : 'No'}</td>
-                <td className="p-2">
-                  <button
-                    onClick={() => handleToggleTaskStatus(task.id, task.is_active)}
-                    className="bg-[#f1b00c] text-black py-1 px-2 rounded-md hover:bg-[#fdd800] mr-2"
-                  >
-                    {task.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="bg-[#e73838] text-white py-1 px-2 rounded-md hover:bg-[#af1616]"
-                  >
-                    Delete
-                  </button>
-                </td>
+            {tasks.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="p-2 text-center">No tasks available.</td>
               </tr>
-            ))}
+            ) : (
+              tasks.map((task) => (
+                <tr key={task.id} className="border-b border-[#d9d9d9]">
+                  <td className="p-2">{task.id}</td>
+                  <td className="p-2">{task.description}</td>
+                  <td className="p-2">
+                    <a href={task.link} target="_blank" rel="noopener noreferrer">
+                      {task.link}
+                    </a>
+                  </td>
+                  <td className="p-2">{task.points}</td>
+                  <td className="p-2">{task.is_active ? 'Yes' : 'No'}</td>
+                  <td className="p-2">
+                    <button
+                      onClick={() => handleToggleTaskStatus(task.id, task.is_active)}
+                      className="bg-[#f1b00c] text-black py-1 px-2 rounded-md hover:bg-[#fdd800] mr-2"
+                    >
+                      {task.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="bg-[#e73838] text-white py-1 px-2 rounded-md hover:bg-[#af1616]"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -490,20 +519,26 @@ function Admin() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-b border-[#d9d9d9]">
-                <td className="p-2">{user.id}</td>
-                <td className="p-2">{user.wallet_address}</td>
-                <td className="p-2">
-                  <a href={user.x_profile} target="_blank" rel="noopener noreferrer">
-                    {user.x_profile}
-                  </a>
-                </td>
-                <td className="p-2">{user.points || 0}</td>
-                <td className="p-2">{user.last_boost_time ? new Date(user.last_boost_time).toLocaleString() : '-'}</td>
-                <td className="p-2">{user.completed_tasks?.length ? user.completed_tasks.join(', ') : '-'}</td>
+            {users.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="p-2 text-center">No users available.</td>
               </tr>
-            ))}
+            ) : (
+              users.map((user) => (
+                <tr key={user.id} className="border-b border-[#d9d9d9]">
+                  <td className="p-2">{user.id}</td>
+                  <td className="p-2">{user.wallet_address}</td>
+                  <td className="p-2">
+                    <a href={user.x_profile} target="_blank" rel="noopener noreferrer">
+                      {user.x_profile}
+                    </a>
+                  </td>
+                  <td className="p-2">{user.points || 0}</td>
+                  <td className="p-2">{user.last_boost_time ? new Date(user.last_boost_time).toLocaleString() : '-'}</td>
+                  <td className="p-2">{user.completed_tasks?.length ? user.completed_tasks.join(', ') : '-'}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
